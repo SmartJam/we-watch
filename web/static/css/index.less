@@ -1,0 +1,102 @@
+.tooltip {
+	display: inline-block;
+	position: relative;
+	.tooltiptext {
+		background-color: rgba(80, 80, 80, .8);
+		border-radius: 6px;
+		color: #ffffff;
+		left: 10px;
+		right: 10px;
+		margin: auto;
+		opacity: 0;
+		padding: 5px 2px;
+		position: absolute;
+		transition: opacity 1s;
+		visibility: hidden;
+		z-index: 1;
+		/*
+		&::after {
+			border-color: #555555 transparent transparent transparent;
+			border-style: solid;
+			border-width: 5px;
+			content: "";
+			left: 50%;
+			margin-left: -5px;
+			position: absolute;
+			top: 100%;
+		}
+		*/
+	}
+	&:hover {
+		.tooltiptext {
+			opacity: 1;
+			visibility: visible;
+		}
+	}
+}
+
+
+.index-root {
+	position: absolute;
+	margin: 20px 50px;
+	padding-bottom: 20px;
+}
+
+.index-comics {
+	position: relative;
+}
+.index-navigator {
+	position: absolute;
+	bottom: 0;
+	width: 100%;
+	height:20px;
+	text-align: center;
+	
+	.txt {
+		font-size: 15px;
+		margin: 0 3px;
+		&.disabled {
+			cursor: not-allowed;
+			color: grey;
+		}
+		&.selected {
+			font-size: 20px;
+			color: red;
+		}
+	}
+}
+
+::-webkit-scrollbar {
+    display: none;
+}
+.index-comic {
+	width: 20%;
+	float: left;
+	text-align: center;
+	margin-bottom: 10px;
+	overflow: hidden;
+	
+	
+	img { 
+		height: 20vw;
+		border-radius: 5px;
+	}
+	
+	.name {
+		display: block;
+		height: 18px;
+		font-size: 13px;
+		width: 100%;
+		text-overflow: ellipsis;
+		overflow: hidden;
+		white-space: nowrap;
+	}
+	
+	.description {
+		font-size: 12px;
+		width: auto;
+		max-height: 80%;
+		text-overflow: ellipsis;
+		overflow-x: scroll;
+	}
+}

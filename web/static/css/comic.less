@@ -1,0 +1,73 @@
+
+@borderRaidus: 6px;
+
+
+body {margin: 0;}
+
+@rootViewWidth: 1000px;
+.root-container {
+	margin: 10px auto;
+	width: @rootViewWidth;
+}
+
+.info {
+	width: 100%;
+	border-radius: @borderRaidus;
+	
+	.cover {
+		float: left;
+		margin-right: 10px;
+		border-radius: @borderRaidus;
+		max-width: 300px;
+	}
+	
+	.author {
+		font-size: 18px;
+	}
+	
+	.status {
+		font-size: 15px;
+	}
+	
+	.description {
+	}
+}
+
+.chapters {
+	width: 100%;
+	border-radius: @borderRaidus;
+	margin-top: 10px;
+}
+
+.chapter {
+	@parentHeight: 20px;
+	@childHeight: @parentHeight;
+	@chapterViewWidth: @rootViewWidth / 5;
+	
+	float: left;
+	width: @chapterViewWidth;
+	height: @parentHeight;
+	margin: 5px 0;
+	
+	.content {
+		display: inline-block;
+	}
+	
+	.name {
+		height: @childHeight;
+		line-height: @childHeight;
+		max-width: @chapterViewWidth * 0.8;
+		text-overflow: ellipsis;
+		overflow: hidden;
+		white-space: nowrap;
+		display:inline-block;
+	}
+	
+	.page-count {
+		color: grey;
+		height: @childHeight;
+		line-height: @childHeight;
+		overflow: hidden;
+		display:inline-block;
+	}
+}

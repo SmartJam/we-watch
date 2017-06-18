@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>{{comic.name}}</title>
+	<link rel="stylesheet" href="/static/css/jquery.webui-popover.1.2.1.min.css">
+	<link rel="stylesheet/less" type="text/css" href="/static/css/comic.less" />
+</head>
+<body>
+<div class="root-container">
+	<fieldset class="info">
+		<legend>{{comic.name}}</legend>
+		<img class="cover" src="{{comic.coverUrl}}">
+		<span class="author">作者：{{comic.author}}</span>
+		<span class="status">状态：{{comic.status}}</span>
+		<p class="description">{{comic.description}}</p>
+	</fieldset>
+	
+	<fieldset class="chapters">
+		<legend>章节</legend>
+		{% for chapter in chapters %}
+			<div class="chapter">
+				<div class="content" data-content="{{chapter.status}}" data-placement="right">
+					<a href="{{chapter.url}}" class="name">{{chapter.name}}</a>
+					<span class="page-count">{{chapter.pageCount}}页</span>
+				</div>
+			</div>
+		{% endfor %}
+	</fieldset>
+</div>
+
+<script src="/static/js/jquery-3.1.1.min.js"></script>
+<script src="/static/js/jquery.webui-popover.1.2.1.min.js"></script>
+<script src="/static/js/less.2.7.2.min.js"></script>
+<script>
+	$('.content').webuiPopover({trigger:'hover'});
+</script>
+</body>
+</html>

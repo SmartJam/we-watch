@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>木有找到</title>
+	<style>
+		html, body{
+			margin: 0;
+			padding: 0;
+		
+			min-width: 100%;
+			width: 100%;
+			max-width: 100%;
+		
+			min-height: 100%;
+			height: 100%;
+			max-height: 100%;
+		}
+	</style>
+	<script>
+		String.prototype.formatUnicorn = String.prototype.formatUnicorn ||
+			function () {
+			var str = this.toString();
+			if (arguments.length) {
+				var t = typeof arguments[0];
+				var key;
+				var args = ("string" === t || "number" === t) ? Array.prototype.slice.call(arguments) : arguments[0];
+
+				for (key in args) {
+					str = str.replace(new RegExp("\\{" + key + "\\}", "gi"), args[key]);
+				}
+			}
+
+			return str;
+		}
+		
+		function randInt(minIncluded, maxIncluded) {
+			return Math.floor(Math.random() * (maxIncluded - minIncluded)) + minIncluded;
+		}
+		
+		function gene404tags() {
+			var tagsCount = randInt(20, 30)
+			var colors = ['tan', 'tomato', 'blueviolet', 'brown', 'azure', 'powderblue', 'turquoise', 'burlywood', 'yellowgreen', 'aqua', 'white', 'beige', 'bisque', 'cornsilk'];
+			
+			var container = document.getElementById('tags-container')
+			var containerWidth = container.offsetWidth;
+			var containerHeight = container.offsetHeight;
+			
+			var newTagFormat = "<span style='position:absolute; top:{top}%; left:{left}%; transform:rotate({rotate}deg); font-size:{fontSize}px; color:{color}'>404</span>"
+			var tags = "";
+			for (var idx = 0; idx < tagsCount; idx++) {
+				var top = randInt(0, 100);
+				var left = randInt(0, 100);
+				var rotate = randInt(0, 360);
+				var fontSize = randInt(20, 100);
+				var color = colors[randInt(0, colors.length - 1)]
+				
+				var maxTop = Math.floor(Math.max((containerHeight - fontSize * 1.9) * 100 / containerHeight, 0)) // 字体大小与元素大小比率大概为1.9
+				top = Math.min(top, maxTop)
+				
+				var maxLeft = Math.floor(Math.max((containerWidth - fontSize * 1.9) * 100 / containerWidth, 0))
+				left = Math.min(left, maxLeft)
+				tags += newTagFormat.formatUnicorn({top:top, left:left, rotate:rotate, fontSize:fontSize, color:color})
+			}
+			
+			container.innerHTML = tags;
+		}
+	</script>
+</head>
+<body onload="gene404tags()", onresize="gene404tags()" style="background:url('http://oji3qlphh.bkt.clouddn.com/Photo20170104151502.jpg') no-repeat center center fixed;background-size: cover">
+<div id="tags-container" style="width:100%; height:100%;"></div>
+</body>
+</html>

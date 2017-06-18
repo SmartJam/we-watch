@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>{{chapter.name}}</title>
+	<link rel="stylesheet/less" type="text/css" href="/static/css/chapter.less" />
+</head>
+<body>
+<div class="root-container">
+	{% for imgUrl in chapter.imgUrls %}
+		<img src="{{imgUrl}}">
+	{% endfor %}
+	
+	<div class="navigator">
+		{% if chapter.nextChapterUrl != None %}
+			<a href="{{chapter.nextChapterUrl}}">下一章</a>
+		{% endif %}
+		<a href="/comic/{{chapter.comicId}}">返回目录</a>
+	</div>
+</div>
+<script src="/static/js/less.2.7.2.min.js"></script>
+</body>
+</html>
