@@ -27,15 +27,3 @@ CREATE TABLE `movies_80s` (
   `updatedAt` DATETIME
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
--- DROP TABLE IF EXISTS `chapters`;
-CREATE TABLE `chapters1` (
-  `chapterId` char(32) COMMENT '',
-  `comicId` char(32),
-  `chapterOrder` int,
-  `chapterName` varchar(128) NOT NULL DEFAULT '' COMMENT '',
-  `addedAt` datetime,
-  `status` char(16) COMMENT 'new|downloading|downloaded',
-  `pageCount` int,
-  PRIMARY KEY pkey(`chapterId`, `comicId`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
-

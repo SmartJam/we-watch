@@ -12,15 +12,17 @@ import time
 import requests
 import re
 import os.path
+from sets import Set
 
 from bs4 import BeautifulSoup
 from db.datasource import DataSource
 from util.common import Logger
+from _ast import alias
 
 conf = ConfigParser.ConfigParser()
 conf.read("../spider.ini")        
 ImgRepoDir = conf.get("baseconf", "imgRepoDir")
-ShouldDownloadCover = bool(conf.get("baseconf", "downloadCover")) # 是否下载封面
+ShouldDownloadCover = conf.get("baseconf", "downloadCover") in ['true', 'True'] # 是否下载封面
 IntervalSecondPerCrawl = max(int(conf.get("baseconf", "intervalSecondPerCrawl")), 1)
 
 ConstUserAgent = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36'
@@ -50,6 +52,7 @@ class MovieIdSpider(threading.Thread):
         
         self.connSession = None
         self.taskMovieIds = taskQueue
+        self.allMovieIds = Set()
         
     def ensureSession(self):
         # how to test the session is available or not??
@@ -87,9 +90,22 @@ class MovieIdSpider(threading.Thread):
         movieIds, nextUrl = self.parsePage(resp.text)
         #Logger.log("[MovieIdSpider] newIds:{}, nextUrl:{}".format(movieIds, nextUrl))
         for movieId in movieIds:
+            if movieId in self.allMovieIds:
+                #Logger.log("[MovieIdSpider] movie already added, id:{}".format(movieId))
+                continue
+            
+            if self.isAlreadyCrawl(movieId):
+                continue
+            
+            self.allMovieIds.add(movieId)
             self.taskMovieIds.put_nowait(movieId)
         
         return nextUrl
+    
+    def isAlreadyCrawl(self, movieId):
+        querySql = "select * from movies_80s where id = %s"
+        rowCount, _rows = DataSource().execute(querySql, [movieId])
+        return rowCount > 0
     
     def parsePage(self, pageContent):
         '''
@@ -134,15 +150,16 @@ class MovieInfoSpider(threading.Thread):
         while (True) :
             try:
                 movieId = self.taskMovieIds.get(True, 1)
+                self.taskMovieIds.task_done()
                 noTaskCount = 0
             except Exception as _e:
                 # no task return
                 noTaskCount += 1
-                if noTaskCount > 10:
+                if noTaskCount > 100:
                     Logger.log("[MovieInfoSpider] no task got, thread ready to stop.")
                     break
                 
-                time.sleep(3)
+                time.sleep(30)
                 continue
             
             try:
@@ -177,7 +194,7 @@ class MovieInfoSpider(threading.Thread):
         '''
         return true:success, false:failed
         '''
-        #Logger.log("[MovieInfoSpider] try handle movie:{}".format(movieId))
+        Logger.log("[MovieInfoSpider] try handle movie:{}".format(movieId))
         
         movieIndexUrl = "http://www.80s.tw/movie/" + str(movieId)
         
@@ -226,40 +243,80 @@ class MovieInfoSpider(threading.Thread):
         name = infoView.find("h1").string.encode('utf-8')
         
         spanViews = infoView.find_all("span", class_="")
-        
-        aliasesView = spanViews[1]
-        aliases = aliasesView.contents[-1].encode('utf-8').strip()
-        
-        starLinks = spanViews[2].find_all('a')
+        aliases = None
         stars = []
-        for starLink in starLinks:
-            stars.append(starLink.string.encode('utf-8'))
-        
+        for spanView in spanViews:
+            subSpan = spanView.find('span')
+            if subSpan == None:
+                continue
+            
+            spanTitle = subSpan.string.encode('utf-8')
+            if '又名' in spanTitle:
+                aliases = spanView.contents[-1].encode('utf-8').strip()
+            elif '演员' in spanTitle:
+                starLinks = spanView.find_all('a')
+                for starLink in starLinks:
+                    stars.append(starLink.string.encode('utf-8'))
+                
         divViews = infoView.find_all("div", class_="clearfix")
         
         # div[0]: 类型 + 地区 + 语言 + 导演 + 上映时间 + 片长 + 更新时间
-        spanViews = divViews[0].find_all("span", class_="span_block")
-        genreLinks = spanViews[0].find_all("a")
         genres = []
-        for genreLink in genreLinks:
-            genres.append(genreLink.string.encode('utf-8'))
-        
-        region = spanViews[1].find("a").string.encode('utf-8')
-        languageLinks = spanViews[2].find_all("a")
+        region = ""
         languages = []
-        for languageLink in languageLinks:
-            languages.append(languageLink.string.encode('utf-8'))
+        director = ""
+        showTime = None
+        duration = None
+        platformUpdateAt = None
+        spanViews = divViews[0].find_all("span", class_="span_block")
+        for spanView in spanViews:
+            subSpan = spanView.find('span')
+            if subSpan == None:
+                continue
+            
+            spanTitle = subSpan.string.encode('utf-8')
+            if '类型' in spanTitle:
+                genreLinks = spanView.find_all("a")
+                for genreLink in genreLinks:
+                    genres.append(genreLink.string.encode('utf-8'))
+            
+            if '地区' in spanTitle:
+                regionLink = spanView.find("a")
+                if regionLink != None:
+                    region = regionLink.string.encode('utf-8')
+            
+            if '语言' in spanTitle:
+                languageLinks = spanViews[2].find_all("a")
+                for languageLink in languageLinks:
+                    languages.append(languageLink.string.encode('utf-8'))
+                    
+            if '导演' in spanTitle:
+                directorLink = spanView.find("a")
+                if directorLink != None:
+                    director = directorLink.string.encode('utf-8')
         
-        director = spanViews[3].find("a").string.encode('utf-8')
-        showTime = spanViews[4].contents[-1].encode('utf-8').strip()
-        duration = spanViews[5].contents[-1].encode('utf-8').strip()
-        platformUpdateAt = spanViews[6].contents[-1].encode('utf-8').strip()
+            if '上映' in spanTitle:
+                showTime = spanView.contents[-1].encode('utf-8').strip()
+            
+            if '片长' in spanTitle:
+                duration = spanView.contents[-1].encode('utf-8').strip()
+                    
+            if '更新' in spanTitle:
+                platformUpdateAt = spanView.contents[-1].encode('utf-8').strip()
+        
         
         #div[1]: 豆瓣
+        doubanScore = 0
+        doubanCommentLink = ""
         spanViews = divViews[1].find_all("span", class_="span_block")
-        doubanScore = spanViews[0].contents[-1].encode('utf-8').strip()
-        doubanCommentLink = spanViews[1].find_all("a")[1].get('href')
-        
+        for spanView in spanViews:
+            spanText = spanView.text.encode('utf-8')
+            if '豆瓣评分' in spanText:
+                doubanScore = spanView.contents[-1].encode('utf-8').strip()
+            
+            if '豆瓣短评' in spanText:
+                doubanCommentLink = spanView.find_all("a")[1].get('href')
+                
         #div[2]: 电影简介
         outline = divViews[2].contents[2].encode('utf-8').strip()
         
@@ -504,18 +561,20 @@ if __name__ == '__main__':
     print "running test."
         
     taskIds = Queue.Queue(0)
-    idSpider = MovieIdSpider(taskIds)
-    #idSpider.tryCrawlMovieIds("http://www.80s.tw/movie/list")
-    idSpider.start()
+#     idSpider = MovieIdSpider(taskIds)
+#     idSpider.start()
     
-    num = 2
-    for _ in range(1, num + 1):
-        infoSpider = MovieInfoSpider(taskIds)
-        infoSpider.start()
-#     spider.addTasksByRange(1003001, 1003100)  # end:1003016
-    #spider.tryCrawlMovieInfo(20772)
+#     num = 2
+#     for _ in range(1, num + 1):
+#         infoSpider = MovieInfoSpider(taskIds)
+#         infoSpider.start()
+
+
+    infoSpider = MovieInfoSpider(taskIds)
+    infoSpider.tryCrawlMovieInfo(5419)
+    #infoSpider.tryCrawlMovieInfo(20895)
     
-    
+    # 1198(showTime), 1004(duration), 17130(doubanScore), 5436(stars), 7610(redirect), 5419(conn failed)
     
     time.sleep(1)
     # spider.change2Stop()

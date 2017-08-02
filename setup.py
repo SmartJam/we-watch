@@ -2,7 +2,7 @@ from setuptools import setup as depSetup
 # from distutils.core import setup as exeSetup
 # import py2exe
 
-depSetup(name='yoedge-spider',
+depSetup(name='we-watch',
       version='0.0.1',
       packages=['spider', 'util', 'db', 'web'],
       install_requires=[
