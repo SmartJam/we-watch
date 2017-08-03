@@ -27,3 +27,17 @@ CREATE TABLE `movies_80s` (
   `updatedAt` DATETIME
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
+
+DROP TABLE IF EXISTS `video_src_80s`;
+CREATE TABLE `video_src_80s` (
+  `movieId` INT COMMENT '',
+  `videoFormat` CHAR(15) COMMENT '视频格式',
+  `videoNo` INT COMMENT '',
+  `title` VARCHAR(255) COMMENT '视频名',
+  `size` CHAR(15) COMMENT '视频大小',
+  `videoSrc` TEXT COMMENT '视频源',
+  `createdAt` DATETIME,
+  `updatedAt` DATETIME,
+  primary key (`movieId`, `videoFormat`, `videoNo`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+

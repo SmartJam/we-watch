@@ -204,7 +204,7 @@ class MovieInfoSpider(threading.Thread):
             Logger.log("[MovieInfoSpider] get movie info failed, url:{}, resp:{}".format(movieIndexUrl, resp))
             return False
         
-        movieData = self.parsePage(resp.text)
+        movieData = self.parsePage(movieId, resp.text)
         movieData['movieId'] = movieId
         
         self.sync2DB(movieData)
@@ -216,7 +216,7 @@ class MovieInfoSpider(threading.Thread):
             
         return True
     
-    def parsePage(self, pageContent):
+    def parsePage(self, movieId, pageContent):
         '''
         return {
                 'coverUrl':"",
@@ -232,7 +232,8 @@ class MovieInfoSpider(threading.Thread):
                 'duration':"", 
                 'doubanScore':""
                 'doubanCommentLink':"",
-                'outline':""
+                'outline':"",
+                'videoFormats':[]
                 }
         '''
         soup = BeautifulSoup(pageContent, "lxml")
@@ -320,6 +321,17 @@ class MovieInfoSpider(threading.Thread):
         #div[2]: 电影简介
         outline = divViews[2].contents[2].encode('utf-8').strip()
         
+        idFormatMapping = {'cpdl3':'hd', 'cpdl4':'bd', 'cpdl5':'bt'}
+        videoFormats = []
+        formatViews = soup.find_all('li', id=re.compile('^cpdl'))
+        for formatView in formatViews:
+            viewId = formatView.get('id')
+            if viewId not in idFormatMapping:
+                Logger.log("[MovieInfoSpider] mapping video format failed, movieId:{}, viewId:{}".format(movieId, viewId))
+                continue
+            else:
+                videoFormats.append(idFormatMapping[viewId])
+        
         ret = {}
         ret['coverUrl'] = coverUrl
         ret['name'] = name
@@ -335,6 +347,7 @@ class MovieInfoSpider(threading.Thread):
         ret['doubanScore'] = doubanScore
         ret['doubanCommentLink'] = doubanCommentLink
         ret['outline'] = outline
+        ret['videoFormats'] = videoFormats
         
         #Logger.log("[MovieInfoSpider] try handle ret:{}".format(ret))
         #self.sync2DB(ret)
@@ -392,7 +405,7 @@ class MovieSrcSpider(threading.Thread):
         noTaskCount = 0
         while (True) :
             try:
-                movieId = self.taskMovieIds.get(True, 1)
+                srcTask = self.srcTasks.get(True, 1)
                 noTaskCount = 0
             except Exception as _e:
                 # no task return
@@ -405,7 +418,9 @@ class MovieSrcSpider(threading.Thread):
                 continue
             
             try:
-                if self.tryCrawlMovieInfo(movieId) == False:
+                movieId = srcTask['movieId']
+                videoFormat = srcTask['format']
+                if self.tryCrawlMovieInfo(movieId, videoFormat) == False:
                     self.continuousFailedTimes += 1
                     if self.continuousFailedTimes >= 100:
                         Logger.log("[MovieSrcSpider] stop crawling cause too much fail.")
@@ -425,12 +440,20 @@ class MovieSrcSpider(threading.Thread):
         return self.connSession
                 
     # http://www.80s.tw/movie/${movieId}/${format}-1    
-    def tryCrawlMovieSrc(self, movieId, format):
+    def tryCrawlMovieSrc(self, movieId, videoFormat):
         '''
-        return true:success, false:failed
+        return {
+            'videoSrcs' : [
+                {
+                    'title' : ""
+                    'size' : ""
+                    'src' : ""
+                }
+            ] 
+        }
         '''
         
-        movieSrcUrl = "http://www.80s.tw/movie/{}/{}-1".format(movieId, format)
+        movieSrcUrl = "http://www.80s.tw/movie/{}/{}-1".format(movieId, videoFormat)
                 
         session = self.ensureSession()
         resp = session.get(movieSrcUrl, headers = {'User-Agent':ConstUserAgent})
@@ -438,122 +461,54 @@ class MovieSrcSpider(threading.Thread):
             Logger.log("[MovieSrcSpider] get movie src failed, url:{}, resp:{}".format(movieSrcUrl, resp))
             return False
         
-        movieData = self.parsePage(resp.text)
-        movieData['movieId'] = movieId
+        videoSrcs = self.parsePage(resp.text)
+        self.sync2DB(movieId, videoFormat, videoSrcs)
         
-        self.sync2DB(movieData)
-        
-        if ShouldDownloadCover == True and bool(movieData['coverUrl']):
-            coverUrl = movieData['coverUrl']
-            coverImgPath = ImgRepoDir + '/covers/80s/' + str(movieId) + '.jpg'
-            downloadImage(self.ensureSession(), movieSrcUrl, coverUrl, coverImgPath)
-            
         return True
     
     def parsePage(self, pageContent):
         '''
-        return {
-                'description':"",
-                'videos':[{name, size, src}],
-                }
+        return [{name, size, src}]
         '''
         soup = BeautifulSoup(pageContent, "lxml")
         
-        coverUrl = "http:" + soup.find("img").get("src")
+        videoSrcs = []
         
-        infoView = soup.find("div", class_="info")
-        name = infoView.find("h1").string.encode('utf-8')
+        spanViews = soup.find_all('span', class_="dlname")
+        for spanView in spanViews:
+            aLink = spanView.find('a')
+            if aLink == None:
+                continue
+            
+            name = aLink.text.strip().encode('utf-8')
+            size = aLink.parent.contents[-1].strip().encode('utf-8')
+            src = aLink.get('href').encode('utf-8')
+            
+            videoSrc = {}
+            videoSrc['name'] = name
+            videoSrc['size'] = size
+            videoSrc['src'] = src
+            videoSrcs.append(videoSrc)
         
-        spanViews = infoView.find_all("span", class_="")
-        
-        aliasesView = spanViews[1]
-        aliases = aliasesView.contents[-1].encode('utf-8').strip()
-        
-        starLinks = spanViews[2].find_all('a')
-        stars = []
-        for starLink in starLinks:
-            stars.append(starLink.string.encode('utf-8'))
-        
-        divViews = infoView.find_all("div", class_="clearfix")
-        
-        # div[0]: 类型 + 地区 + 语言 + 导演 + 上映时间 + 片长 + 更新时间
-        spanViews = divViews[0].find_all("span", class_="span_block")
-        genreLinks = spanViews[0].find_all("a")
-        genres = []
-        for genreLink in genreLinks:
-            genres.append(genreLink.string.encode('utf-8'))
-        
-        region = spanViews[1].find("a").string.encode('utf-8')
-        languageLinks = spanViews[2].find_all("a")
-        languages = []
-        for languageLink in languageLinks:
-            languages.append(languageLink.string.encode('utf-8'))
-        
-        director = spanViews[3].find("a").string.encode('utf-8')
-        showTime = spanViews[4].contents[-1].encode('utf-8').strip()
-        duration = spanViews[5].contents[-1].encode('utf-8').strip()
-        platformUpdateAt = spanViews[6].contents[-1].encode('utf-8').strip()
-        
-        #div[1]: 豆瓣
-        spanViews = divViews[1].find_all("span", class_="span_block")
-        doubanScore = spanViews[0].contents[-1].encode('utf-8').strip()
-        doubanCommentLink = spanViews[1].find_all("a")[1].get('href')
-        
-        #div[2]: 电影简介
-        outline = divViews[2].contents[2].encode('utf-8').strip()
-        
-        ret = {}
-        ret['coverUrl'] = coverUrl
-        ret['name'] = name
-        ret['stars'] = stars
-        ret['aliases'] = aliases
-        ret['genres'] = genres
-        ret['region'] = region
-        ret['languages'] = languages
-        ret['director'] = director
-        ret['showTime'] = showTime
-        ret['duration'] = duration
-        ret['platformUpdateAt'] = platformUpdateAt
-        ret['doubanScore'] = doubanScore
-        ret['doubanCommentLink'] = doubanCommentLink
-        ret['outline'] = outline
-        
-        return ret
+        return videoSrcs
     
-    def sync2DB(self, movieData):        
-        movieId = movieData['movieId']
-        name = movieData['name']
-        coverUrl = movieData['coverUrl']
-        aliases = movieData['aliases']
-        stars = "`".join(movieData['stars'])
-        genres = "`".join(movieData['genres'])
-        
-        region = movieData['region']
-        languages = "`".join(movieData['languages'])
-        director = movieData['director']
-        showTime = movieData['showTime']
-        duration = movieData['duration']
-        platformUpdateAt = movieData['platformUpdateAt']
-        doubanScore = movieData['doubanScore']
-        doubanCommentLink = movieData['doubanCommentLink']
-        outline = movieData['outline']
-         
-        insertMovieSql = """
-                insert into movies_80s(
-                        id, name, aliases, stars, genres,
-                        region, languages, director, showTime, duration,
-                        platformUpdatedAt, doubanScore, doubanCommentLink, outline, createdAt,
-                        updatedAt)
-                values(%s,%s,%s,%s,%s, %s,%s,%s,%s,%s, %s,%s,%s,%s,now(), now())  
-                on duplicate key update updatedAt = now()
+    def sync2DB(self, movieId, videoFormat, videoSrcs):
+        insertVideoSrcSql = """
+                replace into video_src_80s(
+                        movieId, videoFormat, videoNo, title, size,
+                        videoSrc, createdAt, updatedAt)
+                values(%s,%s,%s,%s,%s, %s,now(), now())
         """
-              
+        rows = []
+        videoNo = 0
+        for videoSrc in videoSrcs:
+            videoNo = videoNo + 1
+            row = [movieId, videoFormat, videoNo, videoSrc['name'], videoSrc['size'], videoSrc['src']]
+            rows.append(row)   
         try:
-            self.datasource.execute(insertMovieSql, [movieId, name, aliases, stars, genres, 
-                                                     region, languages, director, showTime, duration,
-                                                     platformUpdateAt, doubanScore, doubanCommentLink, outline])
+            self.datasource.inert_or_update_batch(insertVideoSrcSql, rows)
         except Exception as e:
-            Logger.log("[sync2DB] fail, movieId:{}, error:{}".format(movieId, e))
+            Logger.log("[sync2DB] fail, movieId:{}, format:{}, error:{}".format(movieId, videoFormat, e))
 
         
 if __name__ == '__main__':
@@ -570,11 +525,14 @@ if __name__ == '__main__':
 #         infoSpider.start()
 
 
-    infoSpider = MovieInfoSpider(taskIds)
-    infoSpider.tryCrawlMovieInfo(5419)
+    #infoSpider = MovieInfoSpider(taskIds)
+    #infoSpider.tryCrawlMovieInfo(20847)
     #infoSpider.tryCrawlMovieInfo(20895)
     
     # 1198(showTime), 1004(duration), 17130(doubanScore), 5436(stars), 7610(redirect), 5419(conn failed)
+    
+    srcSpider = MovieSrcSpider(Queue.Queue(0))
+    srcSpider.tryCrawlMovieSrc(20852, "bd")
     
     time.sleep(1)
     # spider.change2Stop()
